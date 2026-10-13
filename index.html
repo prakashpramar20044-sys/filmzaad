@@ -133,6 +133,8 @@ h1 {
 /* Detail sheet */
 .overlay { position: fixed; inset: 0; z-index: 20; display: flex; align-items: flex-end; justify-content: center; background: rgba(0,0,0,0.78); }
 [hidden] { display: none !important; }
+.overlay.page { background: var(--bg); align-items: flex-start; padding: 0; overflow-y: auto; }
+.overlay.page .sheet { max-width: 900px; min-height: 100%; max-height: none; overflow: visible; border: 0; border-radius: 0; background: var(--bg); animation: none; }
 .sheet {
   width: 100%;
   max-width: 580px;
@@ -384,7 +386,7 @@ h1 {
     if (m.trailer) trailer = m.trailer; else if (m.video && !isFile) trailer = m.video;
     var showTrailer = !m.own || !!m.trailer || (!!m.video && !isFile);
     sheet.innerHTML =
-      '<div class="s-head"><span class="tag">Now showing</span><button type="button" class="close" id="close">Close</button></div>' +
+      '<div class="s-head"><span class="tag">Now showing</span><button type="button" class="close" id="close">← Back to all movies</button></div>' +
       '<div class="s-main">' + poster(m, true) +
       '<div class="s-info"><h2 id="s-title">' + esc(m.title) + '</h2>' +
       '<ul class="facts">' + (m.year ? '<li>' + m.year + '</li>' : '') + '<li>' + esc(m.lang) + '</li>' + m.genres.map(function (g) { return '<li>' + esc(g) + '</li>'; }).join("") + '</ul></div></div>' +
@@ -395,19 +397,34 @@ h1 {
       (showTrailer ? '<a class="btn" href="' + trailer + '" target="_blank" rel="noopener noreferrer">Watch trailer</a>' : '') +
       (m.own ? '' : '<a class="btn primary big" href="' + where + '" target="_blank" rel="noopener noreferrer">Download legally</a>') + '</div>' +
       (m.own ? '' : '<p class="note">Download legally opens JustWatch India with this title searched for you, so you can see which services carry it. Check there before you subscribe. Services like Netflix and Prime Video let you download titles for offline viewing inside their own apps.</p>');
+    overlay.classList.add("page");
+    overlay.scrollTop = 0;
+    document.title = m.title + " | Filmzaad";
     overlay.hidden = false;
     document.body.style.overflow = "hidden";
     $("#close").focus();
   }
+  var BASE_TITLE = document.title;
   function close() {
     overlay.hidden = true;
+    overlay.classList.remove("page");
+    document.title = BASE_TITLE;
     document.body.style.overflow = "";
     if (lastFocus && lastFocus.focus) lastFocus.focus();
+  }
+  function route() {
+    var h = location.hash.match(/^#\/movie\/(.+)$/);
+    if (h) open(decodeURIComponent(h[1])); else if (overlay.classList.contains("page")) close();
+  }
+  window.addEventListener("hashchange", route);
+  function goBack() {
+    if (/^#\/movie\//.test(location.hash) && history.length > 1) history.back();
+    else { location.hash = ""; close(); }
   }
 
   grid.addEventListener("click", function (e) {
     var card = e.target.closest(".card");
-    if (card) open(card.getAttribute("data-id"));
+    if (card) location.hash = "#/movie/" + encodeURIComponent(card.getAttribute("data-id"));
   });
   chips.addEventListener("click", function (e) {
     var b = e.target.closest(".chip");
@@ -428,7 +445,7 @@ h1 {
   $("#moreBtn").addEventListener("click", function () { state.shown += PAGE; render(); });
 
   overlay.addEventListener("click", function (e) {
-    if (e.target === overlay || e.target.id === "close") { close(); return; }
+    if (e.target === overlay || e.target.id === "close") { if (overlay.classList.contains("page")) goBack(); else close(); return; }
     var s = e.target.closest("#save");
     if (s) {
       var id = s.getAttribute("data-id");
@@ -441,7 +458,7 @@ h1 {
     }
   });
   document.addEventListener("keydown", function (e) {
-    if (e.key === "Escape" && !overlay.hidden) close();
+    if (e.key === "Escape" && !overlay.hidden) { if (overlay.classList.contains("page")) goBack(); else close(); }
   });
 
   var INFO = {
@@ -473,6 +490,7 @@ h1 {
       '<div class="info"><h2 id="s-title">' + esc(d.title) + '</h2>' +
       d.body.map(function (p) { return '<p>' + esc(p) + '</p>'; }).join("") +
       (d.updated ? '<p class="upd">' + esc(d.updated) + '</p>' : '') + '</div>';
+    overlay.classList.remove("page");
     overlay.hidden = false;
     document.body.style.overflow = "hidden";
     $("#close").focus();
@@ -516,6 +534,7 @@ h1 {
       LANGS = ["All"].concat(Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a] || a.localeCompare(b); }));
       renderChips();
       render();
+      route();
     })
     .catch(function () {
       grid.innerHTML = '<div class="empty"><strong>Could not load the movie list</strong>Check that movies.json is in the same folder as index.html and is valid.</div>';
